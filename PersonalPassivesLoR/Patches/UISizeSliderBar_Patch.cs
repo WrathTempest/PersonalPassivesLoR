@@ -13,9 +13,9 @@ namespace PersonalPassivesLoR.Patches
         public static void SetValues(UISizeSliderBar __instance)
         {
             Slider slider = Helpers.GetPrivateField<Slider>(__instance, "slider");
-            slider.maxValue = 500f;
+            slider.maxValue = 999f;
             Helpers.SetPrivateField<Slider>(__instance, "slider", slider);
-            Helpers.SetPrivateField<float>(__instance, "maxValue", 500f);
+            Helpers.SetPrivateField<float>(__instance, "maxValue", 999f);
         }
        
     }
