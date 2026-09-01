@@ -1,5 +1,6 @@
 ﻿using HarmonyLib;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -14,6 +15,114 @@ namespace DestinyofImmortal.Utils
     /// </summary>
     internal static class Helpers
     {
+        public static T GetPassive<T>(BattleUnitPassiveDetail instance) where T : PassiveAbilityBase
+        {
+            List<PassiveAbilityBase> passiveList = GetPrivateField<List<PassiveAbilityBase>>(instance, "_passiveList");
+            return passiveList?.Find(x => x is T) as T;
+        }
+        public static void DisplayCustomAbnormalityDlg(
+        BattleDialogUI ui,
+        string dialogue,
+        Color? textColor = null,
+        Color? glowColor = null,
+        float duration = 10f)
+        {
+            if (ui == null) return;
+
+            // 1. Fetch private fields via reflection
+            TextMeshProUGUI txtDlg = GetPrivateField<TextMeshProUGUI>(ui, "_txtAbnormalityDlg");
+            Canvas canvas = GetPrivateField<Canvas>(ui, "_canvas");
+            Coroutine currentRoutine = GetPrivateField<Coroutine>(ui, "_routine");
+
+            if (txtDlg == null || canvas == null) return;
+
+            // 2. Fall back to BattleManagerUI's Negative state colors if not provided
+            Color finalTextColor = textColor ?? SingletonBehavior<BattleManagerUI>.Instance.negativeTextColor;
+            Color finalGlowColor = glowColor ?? SingletonBehavior<BattleManagerUI>.Instance.negativeCoinColor;
+
+            // 3. Stop running routine if active
+            if (currentRoutine != null)
+            {
+                ui.StopCoroutine(currentRoutine);
+                SetPrivateField<Coroutine>(ui, "_routine", null);
+                canvas.enabled = false;
+            }
+
+            // 4. Update canvas & CanvasGroup state
+            CanvasGroup cg = ui.GetComponent<CanvasGroup>();
+            canvas.enabled = true;
+
+            if (cg != null)
+            {
+                cg.interactable = true;
+                cg.blocksRaycasts = true;
+            }
+
+     
+
+            
+            UnityEngine.Debug.Log($"Setting color to {finalTextColor} glow to {finalGlowColor}, current color before/after: ...");
+            txtDlg.text = dialogue;
+            txtDlg.color = finalTextColor;
+            UnityEngine.Debug.Log($"color after: {txtDlg.color}");
+            Material mat = txtDlg.fontMaterial;
+            mat.EnableKeyword("GLOW_ON");
+            mat.SetColor("_GlowColor", finalGlowColor);
+            txtDlg.fontMaterial = mat;
+            txtDlg.SetMaterialDirty();
+            txtDlg.ForceMeshUpdate();
+            UnityEngine.Debug.Log($"GLOW_ON enabled: {txtDlg.fontMaterial.IsKeywordEnabled("GLOW_ON")}");
+            UnityEngine.Debug.Log($"glow after: {txtDlg.fontMaterial.GetColor("_GlowColor")}");
+            // 8. Start new coroutine and store reference
+            AbnormalityDlgEffect effect = txtDlg.GetComponent<AbnormalityDlgEffect>();
+            if (effect != null)
+            {
+                effect.Init();
+            }
+            Coroutine newRoutine = ui.StartCoroutine(CustomAbnormalityDlgRoutine(ui, canvas, cg, duration));
+            SetPrivateField(ui, "_routine", newRoutine);
+        }
+
+        private static IEnumerator CustomAbnormalityDlgRoutine(
+            BattleDialogUI ui,
+            Canvas canvas,
+            CanvasGroup cg,
+            float duration)
+        {
+            float elapsed = 0f;
+
+            // Fade In (0.5s)
+            while (elapsed < 1f)
+            {
+                elapsed += Time.deltaTime * 2f;
+                if (cg != null) cg.alpha = elapsed;
+                yield return null;
+            }
+
+            // Hold display
+            yield return YieldCache.WaitForSeconds(duration);
+
+            // Fade Out (0.5s)
+            elapsed = 0f;
+            while (elapsed < 1f)
+            {
+                elapsed += Time.deltaTime * 2f;
+                if (cg != null) cg.alpha = 1f - elapsed;
+                yield return null;
+            }
+
+            // Cleanup state
+            canvas.enabled = false;
+            if (cg != null)
+            {
+                cg.interactable = false;
+                cg.blocksRaycasts = false;
+            }
+
+            SetPrivateField<Coroutine>(ui, "_routine", null);
+            yield break;
+        }
+
         public static T GetPrivateField<T>(object instance, string fieldName)
         {
             if (instance == null) throw new ArgumentNullException(nameof(instance));
