@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using PersonalPassivesLoR.MiscHelpers;
 
 namespace PersonalPassivesLoR
 {
@@ -17,6 +18,7 @@ namespace PersonalPassivesLoR
         public override void OnInitializeMod()
         {
             Harmony.PatchAll();
+            _ = AudioHelper.LoadAllBGMAsync();
         }
     }
 }

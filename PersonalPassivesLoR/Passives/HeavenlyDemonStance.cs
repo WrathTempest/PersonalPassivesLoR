@@ -1,10 +1,12 @@
-﻿using Sound;
+﻿using DestinyofImmortal.Utils;
+using LOR_DiceSystem;
+using Sound;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using LOR_DiceSystem;
+using UnityEngine;
 
 namespace PersonalPassivesLoR.Passives
 {
@@ -30,6 +32,7 @@ namespace PersonalPassivesLoR.Passives
         public override void OnRoundStart()
         {
             base.OnRoundStart();
+            Helpers.ChangeSkinSoundFromSkinName(owner.view.charAppearance, "BlackSilence3");
             switch (this.CurrentStance)
             {
                 case PurpleStance.Slash:
@@ -55,6 +58,7 @@ namespace PersonalPassivesLoR.Passives
         {
             //this.InitPurple();
             SingletonBehavior<SoundEffectManager>.Instance.PlayClip("Battle/Purple_Change", false, 1f, null);
+            
         }
 
         // Token: 0x06004DDD RID: 19933 RVA: 0x001A3634 File Offset: 0x001A1834
@@ -63,16 +67,16 @@ namespace PersonalPassivesLoR.Passives
         {
             switch (Singleton<StageController>.Instance.RoundTurn % 4)
             {
-                case 0:
+                case 1:
                     this.ChangeStance_slash();
                     return;
-                case 1:
+                case 2:
                     this.ChangeStance_penetrate();
                     return;
-                case 2:
+                case 3:
                     this.ChangeStance_hit();
                     return;
-                case 3:
+                case 0:
                     this.ChangeStance_defense();
                     return;
                 default:
@@ -106,26 +110,27 @@ namespace PersonalPassivesLoR.Passives
         }
 
         // Token: 0x06004DDE RID: 19934 RVA: 0x001A36D0 File Offset: 0x001A18D0
-        private void RemoveAllStanceBuf()
+        private void RemoveAllStanceBufandPassive()
         {
-            this.owner.bufListDetail.RemoveBufAll(KeywordBuf.PurpleSlash);
-            this.owner.bufListDetail.RemoveBufAll(KeywordBuf.PurplePenetrate);
-            this.owner.bufListDetail.RemoveBufAll(KeywordBuf.PurpleHit);
-            this.owner.bufListDetail.RemoveBufAll(KeywordBuf.PurpleDefense);
+            var passivePen = Helpers.GetPassive<PassiveAbility_260005>(owner.passiveDetail);
+            if (passivePen != null)
+            {
+                owner.passiveDetail.DestroyPassive(passivePen);
+                owner.passiveDetail.RemovePassive();
+            }
+                      
         }
 
         // Token: 0x06004DDF RID: 19935 RVA: 0x001A3728 File Offset: 0x001A1928
         public void ChangeStance_slash()
         {
             this.owner.UnitData.historyInWave.purpleTearForm_Sla++;
-            this.RemoveAllStanceBuf();
-            this.owner.bufListDetail.AddBuf(new BattleUnitBuf_purpleSlash());
-            this.owner.view.StartEgoSkinChangeEffect("Character");
-
+            this.RemoveAllStanceBufandPassive();
+            SingletonBehavior<SoundEffectManager>.Instance.PlayClip("Battle/Purple_Change", false, 1f, null);
             this._currentStance = PurpleStance.Slash;
             if (this.owner.faction == Faction.Player)
             {
-                this.owner.view.speedDiceSetterUI.DeselectAll();
+                //this.owner.view.speedDiceSetterUI.DeselectAll();
                 int count = (owner.savedCardDetail ?? owner.allyCardDetail).GetHand().Count;
                 List<DiceCardXmlInfo> deckForBattle = this.owner.UnitData.unitData.GetDeckForBattle(0);
                 this.owner.ChangeBaseDeck(deckForBattle, count);
@@ -135,15 +140,14 @@ namespace PersonalPassivesLoR.Passives
         // Token: 0x06004DE0 RID: 19936 RVA: 0x001A3840 File Offset: 0x001A1A40
         public void ChangeStance_penetrate()
         {
-            this.owner.UnitData.historyInWave.purpleTearForm_Pen++;
-            this.RemoveAllStanceBuf();
-            this.owner.bufListDetail.AddBuf(new BattleUnitBuf_purplePenetrate());
-            this.owner.view.StartEgoSkinChangeEffect("Character");
-            //SingletonBehavior<SoundEffectManager>.Instance.PlayClip("Battle/Purple_Change", false, 1f, null);
+            this.owner.UnitData.historyInWave.purpleTearForm_Pen++;        
+            this.RemoveAllStanceBufandPassive();
+            owner.passiveDetail.AddPassive(new PassiveAbility_260005());
+            SingletonBehavior<SoundEffectManager>.Instance.PlayClip("Battle/Purple_Change", false, 1f, null);
             this._currentStance = PurpleStance.Penetrate;
             if (this.owner.faction == Faction.Player)
             {
-                this.owner.view.speedDiceSetterUI.DeselectAll();
+                //this.owner.view.speedDiceSetterUI.DeselectAll();
                 int count = (owner.savedCardDetail ?? owner.allyCardDetail).GetHand().Count;
                 List<DiceCardXmlInfo> deckForBattle = this.owner.UnitData.unitData.GetDeckForBattle(1);
                 this.owner.ChangeBaseDeck(deckForBattle, count);
@@ -153,15 +157,16 @@ namespace PersonalPassivesLoR.Passives
         // Token: 0x06004DE1 RID: 19937 RVA: 0x001A3958 File Offset: 0x001A1B58
         public void ChangeStance_hit()
         {
+            
             this.owner.UnitData.historyInWave.purpleTearForm_Hit++;
-            this.RemoveAllStanceBuf();
+            this.RemoveAllStanceBufandPassive();
             this.owner.bufListDetail.AddBuf(new BattleUnitBuf_purpleHit());
-            this.owner.view.StartEgoSkinChangeEffect("Character");
-            //SingletonBehavior<SoundEffectManager>.Instance.PlayClip("Battle/Purple_Change", false, 1f, null);
+
+            SingletonBehavior<SoundEffectManager>.Instance.PlayClip("Battle/Purple_Change", false, 1f, null);
             this._currentStance = PurpleStance.Hit;
             if (this.owner.faction == Faction.Player)
             {
-                this.owner.view.speedDiceSetterUI.DeselectAll();
+                //this.owner.view.speedDiceSetterUI.DeselectAll();
                 int count = (owner.savedCardDetail ?? owner.allyCardDetail).GetHand().Count;
                 List<DiceCardXmlInfo> deckForBattle = this.owner.UnitData.unitData.GetDeckForBattle(2);
                 this.owner.ChangeBaseDeck(deckForBattle, count);
@@ -171,20 +176,22 @@ namespace PersonalPassivesLoR.Passives
         // Token: 0x06004DE2 RID: 19938 RVA: 0x001A3A70 File Offset: 0x001A1C70
         public void ChangeStance_defense()
         {
+            Helpers.ChangeSkinSoundFromSkinName(owner.view.charAppearance, "TheHead");
             this.owner.UnitData.historyInWave.purpleTearForm_Def++;
-            this.RemoveAllStanceBuf();
+            this.RemoveAllStanceBufandPassive();
             this.owner.bufListDetail.AddBuf(new BattleUnitBuf_purpleDefense());
-            this.owner.view.StartEgoSkinChangeEffect("Character");
-            //SingletonBehavior<SoundEffectManager>.Instance.PlayClip("Battle/Purple_Change", false, 1f, null);
+            SingletonBehavior<SoundEffectManager>.Instance.PlayClip("Battle/Purple_Change", false, 1f, null);
             this._currentStance = PurpleStance.Defense;
             if (this.owner.faction == Faction.Player)
             {
-                this.owner.view.speedDiceSetterUI.DeselectAll();
+                //this.owner.view.speedDiceSetterUI.DeselectAll();
                 int count = (owner.savedCardDetail ?? owner.allyCardDetail).GetHand().Count;
                 List<DiceCardXmlInfo> deckForBattle = this.owner.UnitData.unitData.GetDeckForBattle(3);
                 this.owner.ChangeBaseDeck(deckForBattle, count);
             }
         }
+
+        
 
         // Token: 0x04003694 RID: 13972
         private PurpleStance _currentStance;

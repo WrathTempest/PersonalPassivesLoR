@@ -1,38 +1,46 @@
 ﻿//using CustomInvitation;
 using Battle.CreatureEffect;
+using DestinyofImmortal.Utils;
+using ExtendedLoader;
 using LOR_DiceSystem;
+using LorIdExtensions;
 using Sound;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 using UI;
-using LorIdExtensions;
-using ExtendedLoader;
 using UnityEngine;
+using PersonalPassivesLoR.MiscHelpers;
 using static EmotionCardAbility_blackswan1;
-using DestinyofImmortal.Utils;
+using static PersonalPassivesLoR.Passives.PassiveAbility_HeavenlyDemon5;
+using static UnityEngine.UI.CanvasScaler;
 
 namespace PersonalPassivesLoR.Passives
 {
     public class PassiveAbility_HeavenlyDemon1 : PassiveAbilityBase
     {
+        private int _threerounds = 0;
         public bool forcedDeath = false;
         private int speedDice = 2;
-        private int speedDiceEmotion = 2;
+        
         private int perHPRecover = 5;
-        private int minHandSize = 8;
+        private int minHandSize = 9;
         private int _elapsedRound = 0;
         private string packageId = PersonalPassivesLoRInitializer.packageId;
         private float SecondPhaseTrigger => 1f;
         private bool canTriggerSecondPhase = true;
         private bool secondPhaseReady = false;
-        private bool inSecondPhase = false;
+        public bool inSecondPhase = false;
         public static bool secondPhaseGlobal = false;
         private int _dmgReduction = 0;
-        private int modCardnum = 8;
+        private int modCardnum = 7;
+        private int emotionLevel => owner.emotionDetail?.EmotionLevel ?? 0;
+        private int speedDiceEmotion => emotionLevel >= 3 ? 1 : 0;
+        private List<BattleUnitModel> enemies => BattleObjectManager.instance.GetAliveList((owner.faction == Faction.Player) ? Faction.Enemy : Faction.Player);
 
         private readonly List<string> battleDialogues = new List<string>()
     {
@@ -149,12 +157,35 @@ namespace PersonalPassivesLoR.Passives
 
         private void ResetFlags()
         {
-            if (owner.bufListDetail.GetActivatedBufList().Find(x => x is PassiveAbility_160004.BattleUnitBuf_battle) == null)
+            if (owner.bufListDetail.GetActivatedBufList().Find(x => x is BattleUnitBuf_HDBuff) == null)
             {
                 canTriggerSecondPhase = true;
                 secondPhaseReady = false;
                 inSecondPhase = false;
                 _dmgReduction = 0;
+            }
+        }
+        private void InitBgm()
+        {
+            if (this.owner.faction == Faction.Player)
+            {
+                AudioClip[] array = new AudioClip[3];
+                AudioHelper.AudioStorage.TryGetValue("Persona5/Awakening", out AudioClip audioClip);
+                if (audioClip != null)
+                {
+                    for (int i = 0; i < array.Length; i++)
+                    {
+                        array[i] = audioClip;
+                    }
+                    SingletonBehavior<BattleSoundManager>.Instance.SetAllyTheme(array);
+                    SingletonBehavior<BattleSoundManager>.Instance.SetEnemyTheme(array);
+                    SingletonBehavior<BattleSoundManager>.Instance.ChangeEnemyTheme(0);
+                    return;
+                }
+                else
+                {
+                    Debug.LogError("Bgm Not found: Custom BGM Loader");
+                }               
             }
         }
 
@@ -173,6 +204,9 @@ namespace PersonalPassivesLoR.Passives
         {
             secondPhaseReady = true;
             canTriggerSecondPhase = true;
+            owner.view.EnableView(true);
+            owner.Extinct(false);
+            owner.moveDetail.ReturnToFormationByBlink(false);
             TrySecondPhase();
         }
 
@@ -190,6 +224,7 @@ namespace PersonalPassivesLoR.Passives
             owner.ResetBreakGauge();
             owner.SetKnockoutInsteadOfDeath(false);
             owner.breakDetail.nextTurnBreak = false;
+            owner.bufListDetail.RemoveBufAll(BufPositiveType.Negative);
             SetResistances();
             EarthQuake();
             owner.UnitData.unitData.SetCustomName("Saint of Twin Blazes");
@@ -205,8 +240,10 @@ namespace PersonalPassivesLoR.Passives
         private void PlayChangingEffect()
         {
             owner.view.charAppearance.ChangeMotion(ActionDetail.Default);
-            ChangeToInvitationMap("Yan");
 
+            MapManagerHelper.ChangeToInvitationMapWithDialogue("Yan", battleDialogues);
+            AudioHelper.ChangeBGM("Persona5/Hymn of the Soul");
+            
             Util.LoadPrefab("Battle/DiceAttackEffects/CreatureBattle/EGO_Freischutz_6thBullet")
                 .GetComponent<FarAreaEffect_EGO_Freischutz_6thBullet>()
                 .Init(owner, Array.Empty<object>());
@@ -229,12 +266,19 @@ namespace PersonalPassivesLoR.Passives
 
         private void InitializeBuff()
         {
+            int hp = 0;
+            int breakLife = 0;
+            foreach (BattleUnitModel enemy in enemies)
+            {
+                hp += enemy.MaxHp;
+                breakLife += enemy.breakDetail.GetDefaultBreakGauge();
+            }
             if (owner.bufListDetail.GetActivatedBufList().Find(x => x is HDBuffInitialBoost) == null)
             {
                 owner.bufListDetail.AddBuf(new HDBuffInitialBoost
                 {
-                    hpAdder = owner.MaxHp * 4,
-                    breakGageAdder = owner.breakDetail.GetDefaultBreakGauge(),
+                    hpAdder = hp,
+                    breakGageAdder = breakLife / 2
                 });
                 owner.RecoverHP(owner.MaxHp);
                 owner.breakDetail.breakGauge = owner.breakDetail.GetDefaultBreakGauge();
@@ -243,8 +287,9 @@ namespace PersonalPassivesLoR.Passives
 
         private void InitializeAuras()
         {
-            AuraHelper.AttachBodyAura(owner, _spawnedAuraObjects, "Battle/DiceAttackEffects/New/FX/PC/Librarian/FX_PC_Librarian_Light", 3.5f);
-            AuraHelper.AttachGiftAura(owner, _spawnedAuraObjects, "BlueReverberation2", 1.5f);
+            //AuraHelper.AttachBodyAura(owner, _spawnedAuraObjects, "Battle/DiceAttackEffects/New/FX/PC/Librarian/FX_PC_Librarian_Light", 3.5f);
+            AuraHelper.AttachGiftAura(owner, _spawnedAuraObjects, "BloodNight2", 1.5f);
+            
         }
 
         private void ReplaceSkin()
@@ -252,13 +297,16 @@ namespace PersonalPassivesLoR.Passives
             AuraHelper.DestroyAuras(_spawnedAuraObjects);
             owner.view.ChangeSkin(new LorName(packageId, "Sazantos"));
             owner.view.ChangeHeight(450);
+            Helpers.ChangeSkinSoundFromSkinName(owner.view.charAppearance, "TheHead");
             InitializeAuras();
-            AuraHelper.AttachGiftAura(owner, _spawnedAuraObjects, "Promise2", 1.5f);
+            AuraHelper.AttachGiftAura(owner, _spawnedAuraObjects, "BlueReverberation2", 1.5f);
+            AuraHelper.AttachGiftAura(owner, _spawnedAuraObjects, "GearGod2", 1f);
+            //AuraHelper.AttachGiftAura(owner, _spawnedAuraObjects, "Promise2", 1.5f);
         }
 
         private void ReduceCostDeck()
         {
-            foreach (BattleDiceCardModel card in owner.allyCardDetail.GetDeck())
+            foreach (BattleDiceCardModel card in owner.allyCardDetail.GetAllDeck())
             {
                 card.SetCostToZero();
                 card.exhaust = false;
@@ -269,7 +317,7 @@ namespace PersonalPassivesLoR.Passives
         {
             ResetFlags();
             SetResistances();
-            ReduceCostDeck();
+            
         }
 
         public override void OnDie()
@@ -281,22 +329,15 @@ namespace PersonalPassivesLoR.Passives
         public override void OnRoundEndTheLast()
         {
             TrySecondPhase();
+            
         }
 
         public override void OnDrawCard()
         {
             base.OnDrawCard();
-            if (_elapsedRound % 3 == 0)
-            {
-                if (owner.IsBreakLifeZero())
-                {
-                    owner.RecoverBreakLife(1, false);
-                    owner.ResetBreakGauge();
-                    owner.breakDetail.nextTurnBreak = false;
-                }
-            }
-            int stack = Math.Min((int)Math.Ceiling((double)(Singleton<StageController>.Instance.RoundTurn / 2)), 10);
-            owner.bufListDetail.AddKeywordBufByEtc(KeywordBuf.Strength, stack, null);
+            ReduceCostDeck();
+            //int stack = Math.Min((int)Math.Ceiling((double)(Singleton<StageController>.Instance.RoundTurn / 2)), 10);
+            //owner.bufListDetail.AddKeywordBufByEtc(KeywordBuf.Strength, stack, null);
         }
 
         public override void OnRollSpeedDice()
@@ -319,6 +360,8 @@ namespace PersonalPassivesLoR.Passives
                 InitializeBuff();
                 InitializeAuras();
                 forcedDeath = false;
+                Helpers.ChangeSkinSoundFromSkinName(owner.view.charAppearance, "BlackSilence3");
+                owner.Book.SetMaxPlayPoint(4);
             }
         }
 
@@ -329,40 +372,63 @@ namespace PersonalPassivesLoR.Passives
             {
                 item.value = 999;
             }
-            EarthQuake();
+            
         }
 
         public override void OnRoundStart()
         {
             _elapsedRound++;
+            if (_elapsedRound == 1)
+            {
+                //MapManagerHelper.ChangeToInvitationMapWithDialogue("Yan", battleDialogues2);
+            }
+            
+            if (!inSecondPhase && emotionLevel >= 5)
+            {
+                AudioHelper.ChangeBGM("Persona5/Awakening", 0.85f, 1f);
+            }
+
+            if ((_elapsedRound) % 3 == 0)
+            {
+                _threerounds++;
+                if (owner.IsBreakLifeZero())
+                {
+                    owner.RecoverBreakLife(1, false);
+                    owner.ResetBreakGauge();
+                    owner.breakDetail.nextTurnBreak = false;
+                    owner.turnState = BattleUnitTurnState.WAIT_CARD;
+                    owner.breakDetail.RecoverBreak(owner.breakDetail.GetDefaultBreakGauge());
+                    owner.moveDetail.ReturnToFormationByBlink(true);
+                    owner.view.charAppearance.ChangeMotion(ActionDetail.Standing);
+                    
+                }
+                foreach (BattleUnitModel enemy in enemies)
+                {
+                    enemy.bufListDetail.AddBuf(new BattleUnitBuf_DarkFlame());
+                    //enemy.bufListDetail.AddKeywordBufByEtc(KeywordBuf.Burn, 3, null);
+                }
+                if (_threerounds > 0 && !inSecondPhase)
+                {
+                    owner.bufListDetail.AddKeywordBufByEtc(KeywordBuf.Strength, _threerounds, null);
+                    owner.bufListDetail.AddKeywordBufByEtc(KeywordBuf.Protection, _threerounds, null);
+                }
+                EarthQuake();
+            }
+            
             ShowDialog();
             owner.ShowPassiveTypo(this);
             if (!inSecondPhase)
             {
                 TrySecondPhase();
             }
-
-            Faction targetFaction = (owner.faction == Faction.Player) ? Faction.Enemy : Faction.Player;
-            foreach (BattleUnitModel enemy in BattleObjectManager.instance.GetAliveList(targetFaction))
-            {
-                enemy.bufListDetail.AddKeywordBufByEtc(KeywordBuf.Burn, 3, null);
-            }
-
+           
             if (owner.bufListDetail.GetActivatedBuf(KeywordBuf.KeterFinal_DoubleEmotion) == null)
             {
-                owner.bufListDetail.AddBuf(new BattleUnitBuf_KeterFinal_DoubleEmotion());
+                //owner.bufListDetail.AddBuf(new BattleUnitBuf_KeterFinal_DoubleEmotion());
             }
-
+            owner.cardSlotDetail.RecoverPlayPoint(owner.MaxPlayPoint);
             AddEgoCards();
             DrawPages();
-
-            foreach (BattleUnitModel unit in BattleObjectManager.instance.GetAliveList(false))
-            {
-                if (unit != owner)
-                {
-                    unit.bufListDetail.AddBuf(new BattleUnitBuf_DarkFlame());
-                }
-            }
 
             if (inSecondPhase)
             {
@@ -376,15 +442,7 @@ namespace PersonalPassivesLoR.Passives
             }
         }
 
-        private void ChangeToInvitationMap(string mapName)
-        {
-            GameObject gameObject = Util.LoadPrefab("InvitationMaps/InvitationMap_" + mapName, SingletonBehavior<BattleSceneRoot>.Instance.transform);
-            gameObject.name = "InvitationMap_" + mapName;
-            MapManager mapObject = gameObject.GetComponent<MapManager>();
-            SingletonBehavior<BattleSceneRoot>.Instance.InitInvitationMap(mapObject);
-            Helpers.SetPrivateField<string>(Singleton<StageController>.Instance.GetStageModel(), "_currentMapInfo", mapName);
-            SingletonBehavior<BattleSceneRoot>.Instance.ChangeToSpecialMap(mapName, true, false);
-        }
+        
 
         public override bool BeforeTakeDamage(BattleUnitModel attacker, int dmg)
         {
@@ -413,13 +471,14 @@ namespace PersonalPassivesLoR.Passives
         {
             if (inSecondPhase)
             {
-                behavior.ApplyDiceStatBonus(new DiceStatBonus { max = 10 });
+                behavior.ApplyDiceStatBonus(new DiceStatBonus { max = _threerounds * 2 });
             }
+            behavior.ApplyDiceStatBonus(new DiceStatBonus { dmg = Math.Min(_elapsedRound, 10) });
         }
 
         public override int SpeedDiceNumAdder()
         {
-            return inSecondPhase ? speedDice + speedDiceEmotion : speedDice;
+            return inSecondPhase ? speedDice + 2 + speedDiceEmotion : speedDice + speedDiceEmotion;
         }
 
         public class BattleUnitBuf_DarkFlame : BattleUnitBuf
@@ -452,9 +511,29 @@ namespace PersonalPassivesLoR.Passives
             public int breakGageAdder;
 
             private readonly List<KeywordBuf> debuffImmune = new List<KeywordBuf>()
-        {
-            KeywordBuf.Stun, KeywordBuf.Seal, KeywordBuf.Decay, KeywordBuf.Disarm, KeywordBuf.Binding
-        };
+            {
+            KeywordBuf.Stun, KeywordBuf.Seal, KeywordBuf.Decay, KeywordBuf.Disarm, KeywordBuf.Binding, KeywordBuf.Weak, KeywordBuf.Seal
+            };
+
+            private readonly List<Type> immuneBuff = new List<Type>()
+            {
+                typeof(BattleUnitBuf_Butterfly_Seal),
+                typeof(BattleUnitBuf_sealTemp),
+                typeof(BattleUnitBuf_KingOfGreed_DestroySpeedDice),
+                typeof(BattleUnitBuf_Oswald_Daze),
+                typeof(BattleUnitBuf_Oswald_Distract),
+                typeof(BattleUnitBuf_Pluto_Contracted_1),
+                typeof(BattleUnitBuf_Pluto_Contracted_2),
+                typeof(BattleUnitBuf_Pluto_Contracted_3),
+                typeof(BattleUnitBuf_Pluto_Contracted_4),
+                typeof(BattleUnitBuf_Pluto_Contracted_5),
+                typeof(BattleUnitBuf_HDDisadvantage)
+            };
+
+            public override bool IsImmune(BattleUnitBuf buf)
+            {
+                return immuneBuff.Contains(buf.GetType());
+            }
 
             public override bool IsImmune(KeywordBuf buf) => debuffImmune.Contains(buf);
 
@@ -472,7 +551,7 @@ namespace PersonalPassivesLoR.Passives
 
         public class BattleUnitBuf_HDBuff : BattleUnitBuf
         {
-            public override KeywordBuf bufType => KeywordBuf.Maxim;
+            public override bool Hide => true;
             public int hpAdder;
             public int breakGageAdder;
 

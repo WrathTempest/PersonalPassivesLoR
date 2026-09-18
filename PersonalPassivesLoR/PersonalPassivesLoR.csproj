@@ -87,11 +87,23 @@
       <HintPath>..\..\..\..\Program Files (x86)\Steam\steamapps\common\Library Of Ruina\LibraryOfRuina_Data\Managed\UnityEngine.UIModule.dll</HintPath>
       <Private>False</Private>
     </Reference>
+    <Reference Include="UnityEngine.UnityWebRequestAudioModule">
+      <HintPath>..\..\..\..\Program Files (x86)\Steam\steamapps\common\Library Of Ruina\LibraryOfRuina_Data\Managed\UnityEngine.UnityWebRequestAudioModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UnityWebRequestModule">
+      <HintPath>..\..\..\..\Program Files (x86)\Steam\steamapps\common\Library Of Ruina\LibraryOfRuina_Data\Managed\UnityEngine.UnityWebRequestModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="DiceCardSelfAbilities\HDFurioso.cs" />
     <Compile Include="Main.cs" />
+    <Compile Include="MiscHelpers\AudioHelper.cs" />
+    <Compile Include="MiscHelpers\MapManagerHelper.cs" />
     <Compile Include="Passives\AuraHelper.cs" />
     <Compile Include="Passives\HeavenlyDemon1.cs" />
+    <Compile Include="Passives\HeavenlyDemon5.cs" />
     <Compile Include="Passives\HeavenlyDemonBlank.cs" />
     <Compile Include="Passives\HeavenlyDemonStance.cs" />
     <Compile Include="Patches\AnnoyingMechanics_Patches.cs" />

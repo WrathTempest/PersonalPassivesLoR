@@ -6,33 +6,36 @@ using System;
 using System.Collections.Generic;
 using UI;
 using UnityEngine.UI;
+using TMPro;
 
 namespace PersonalPassivesLoR.Patches
 {
     [HarmonyPatch]
     internal class BattleSceneRoot_Patches
     {
-        private static bool _isCreatureStorage = false;
-        [HarmonyPatch(typeof(BattleSceneRoot), nameof(BattleSceneRoot.ChangeToSpecialMap))]
-        [HarmonyPrefix]
-        public static void SpecialMapPatch(BattleSceneRoot __instance, string mapName, bool playEffect, bool scaleChange)
-        {
-            if (__instance.currentMapObject.isCreature)
-            {
-                _isCreatureStorage = true;
-                __instance.currentMapObject.isCreature = false;
-            }
+        private static int currentRound => Singleton<StageController>.Instance != null ? Singleton<StageController>.Instance.RoundTurn : 0;
+        //private static bool _isCreatureStorage = false;
+        //[HarmonyPatch(typeof(BattleSceneRoot), nameof(BattleSceneRoot.ChangeToSpecialMap))]
+        //[HarmonyPrefix]
+        //public static void SpecialMapPatch(BattleSceneRoot __instance, string mapName, bool playEffect, bool scaleChange)
+        //{
+        //    if (__instance.currentMapObject.isCreature)
+        //    {
+        //        _isCreatureStorage = true;
+        //        __instance.currentMapObject.isCreature = false;
+        //    }
 
-        }
+        //}
 
         [HarmonyPatch(typeof(BattleUnitModel), nameof(BattleUnitModel.Die))]
         [HarmonyPrefix]
         public static bool BypassDeath(BattleUnitModel __instance)
         {
             var passive = Helpers.GetPassive<PassiveAbility_HeavenlyDemon1>(__instance.passiveDetail);
+            UnityEngine.Debug.Log($"Death triggered on unit: {__instance.UnitData.unitData.name}");
             if (passive != null)
             {
-                if (!passive.forcedDeath)
+                if (!passive.forcedDeath && !passive.inSecondPhase)
                 {
                     passive.forcedDeath = true;
                     passive.ForceSecondPhase();
@@ -43,17 +46,17 @@ namespace PersonalPassivesLoR.Patches
 
         }
 
-        [HarmonyPatch(typeof(BattleSceneRoot), nameof(BattleSceneRoot.ChangeToSpecialMap))]
-        [HarmonyPostfix]
-        public static void SpecialMapPatchPostfix(BattleSceneRoot __instance, string mapName, bool playEffect, bool scaleChange)
-        {
-            if (_isCreatureStorage)
-            {
-                _isCreatureStorage = false;
-                __instance.currentMapObject.isCreature = true;
-            }
+        //[HarmonyPatch(typeof(BattleSceneRoot), nameof(BattleSceneRoot.ChangeToSpecialMap))]
+        //[HarmonyPostfix]
+        //public static void SpecialMapPatchPostfix(BattleSceneRoot __instance, string mapName, bool playEffect, bool scaleChange)
+        //{
+        //    if (_isCreatureStorage)
+        //    {
+        //        _isCreatureStorage = false;
+        //        __instance.currentMapObject.isCreature = true;
+        //    }
 
-        }
+        //}
 
         [HarmonyPatch(typeof(BattleSoundManager), nameof(BattleSoundManager.ChangeEnemyTheme))]
         [HarmonyPrefix]
@@ -61,9 +64,16 @@ namespace PersonalPassivesLoR.Patches
         public static bool EnemyTheme(BattleSoundManager __instance, ref int idx)
         {
             UnityEngine.Debug.Log($"Enemy Theme called! idx: {idx}");
-            if (idx == 0 || idx == 1)
+            if (currentRound < 5) return false;
+            if (idx == 0)
             {
-                return false;
+                idx = 2;
+                return true;
+            }
+            if (idx == 1)
+            {
+                idx = 2;
+                return true;
             }
             if (PassiveAbility_HeavenlyDemon1.secondPhaseGlobal)
             {
@@ -77,10 +87,18 @@ namespace PersonalPassivesLoR.Patches
         [HarmonyPriority(0)]
         public static bool AllyTheme(BattleSoundManager __instance, ref int idx)
         {
+
             UnityEngine.Debug.Log($"Ally Theme called! idx: {idx}");
-            if (idx == 0 || idx == 1)
+            if (currentRound < 5) return false;
+            if (idx == 0)
             {
-                return false;
+                idx = 2;
+                return true;
+            }
+            if (idx == 1)
+            {
+                idx = 2;
+                return true;
             }
             if (PassiveAbility_HeavenlyDemon1.secondPhaseGlobal)
             {
@@ -98,6 +116,19 @@ namespace PersonalPassivesLoR.Patches
             optionList.Remove(CardOption.OnlyPage);
             Helpers.SetPrivateField<List<CardOption>>(__instance, "optionList", optionList);
             __result = false;
+        }
+
+        [HarmonyPatch(typeof(BattleUnitInformationUI), nameof(BattleUnitInformationUI.SetOpenData))]
+        [HarmonyPostfix]
+        [HarmonyPriority(Priority.Last)]
+        public static void AdjustTitles(BattleUnitInformationUI __instance, BattleUnitModel unit)
+        {
+            if (!unit.passiveDetail.HasPassive<PassiveAbility_HeavenlyDemon1>())
+            {
+                return;
+            }
+            TextMeshProUGUI txt_title = Helpers.GetPrivateField<TextMeshProUGUI>(__instance, "txt_title");
+            txt_title.text = "The Arbiter of The End";
         }
 
         //[HarmonyPatch(typeof(BookModel), nameof(BookModel.GetOnlyCards))]

@@ -1,4 +1,5 @@
 ﻿using HarmonyLib;
+using LOR_DiceSystem;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -15,6 +16,106 @@ namespace DestinyofImmortal.Utils
     /// </summary>
     internal static class Helpers
     {
+        public static void ChangeSkinSoundFromSkinName(
+    CharacterAppearance owner,
+    string skinName)
+        {
+            string path;
+
+            GameObject gameObject =
+                Singleton<AssetBundleManagerRemake>.Instance
+                    .LoadCharacterPrefab(skinName, "", out path);
+
+            if (gameObject == null)
+            {
+                UnityEngine.Debug.LogError($"Skin not found: {skinName}");
+                return;
+            }
+
+            CharacterAppearance characterAppearance =
+                gameObject.GetComponent<CharacterAppearance>();
+
+            characterAppearance.Initialize(path);
+
+            CharacterSound sourceSound = characterAppearance.soundInfo;
+            CharacterSound targetSound = owner.soundInfo;
+
+            List<CharacterSound.Sound> sourceSounds =
+                Helpers.GetPrivateField<List<CharacterSound.Sound>>(
+                    sourceSound,
+                    "_motionSounds"
+                );
+
+            List<CharacterSound.Sound> targetSounds =
+                Helpers.GetPrivateField<List<CharacterSound.Sound>>(
+                    targetSound,
+                    "_motionSounds"
+                );
+
+            Dictionary<LOR_DiceSystem.MotionDetail, CharacterSound.Sound> targetDictionary =
+                Helpers.GetPrivateField<
+                    Dictionary<LOR_DiceSystem.MotionDetail, CharacterSound.Sound>
+                >(targetSound, "_dic");
+
+            if (sourceSounds == null || targetSounds == null)
+            {
+                UnityEngine.Debug.LogError("Motion sound list was null.");
+                return;
+            }
+
+            targetSounds.Clear();
+            targetSounds.AddRange(sourceSounds);
+
+            targetDictionary?.Clear();
+
+            UnityEngine.Debug.Log(
+                $"Changed motion sounds to skin {skinName}. " +
+                $"Loaded {sourceSounds.Count} sounds."
+            );
+            foreach (var sound in targetSounds)
+            {
+                if (sound.motion == MotionDetail.J)
+                {
+                    //sound.winSound = GetMotionSound(sourceSound, MotionDetail.S5);
+                }
+                if (sound.motion == MotionDetail.H)
+                {
+                    //sound.winSound = GetMotionSound(sourceSound, MotionDetail.S);
+                }
+                if (sound.winSound != null)
+                {
+                    UnityEngine.Debug.Log(
+                        $"Win sound: {sound.winSound.name} | Motion: {sound.motion}"
+                    );
+                }
+            }
+        }
+
+        public static AudioClip GetMotionSound(
+        CharacterSound characterSound,
+        MotionDetail motion,
+        bool win = true)
+        {
+            if (characterSound == null || motion == null)
+                return null;
+
+            List<CharacterSound.Sound> sounds =
+                Helpers.GetPrivateField<List<CharacterSound.Sound>>(
+                    characterSound,
+                    "_motionSounds"
+                );
+
+            if (sounds == null)
+                return null;
+
+            CharacterSound.Sound sound =
+                sounds.Find(x => x.motion == motion);
+
+            if (sound == null)
+                return null;
+
+            return win ? sound.winSound : sound.loseSound;
+        }
         public static T GetPassive<T>(BattleUnitPassiveDetail instance) where T : PassiveAbilityBase
         {
             List<PassiveAbilityBase> passiveList = GetPrivateField<List<PassiveAbilityBase>>(instance, "_passiveList");
